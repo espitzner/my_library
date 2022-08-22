@@ -16,7 +16,8 @@ Description related to library.
     'data': [
         'security/groups.xml',
         'security/ir.model.access.csv',
-        'views/library_book.xml'
+        'views/library_book.xml',
+        'views/library_book_categ.xml',
     ],
     # This demo data files will be loaded if db initialize with demo data (commented becaues file is not added in this example)
     # 'demo': [
