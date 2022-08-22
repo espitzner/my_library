@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-from odoo import models, fields
+from odoo import models, fields, api
+from odoo.exceptions import ValidationError
+from datetime import timedelta
 
 
 class LibraryBook(models.Model):
@@ -7,6 +9,10 @@ class LibraryBook(models.Model):
     _description = 'Library Book'
     _rec_name = 'short_name'
     _order = 'date_release desc, name'
+    _sql_constraints = [
+        ('name_uniq', 'UNIQUE (name)', 'Book title must be uniquie.'),
+        ('positive_page', 'CHECK(pages>0)', 'No of pages must be positive')
+    ]
 
     name = fields.Char('Title', required=True)
     short_name = fields.Char('Short Title', required=True)
@@ -30,6 +36,50 @@ class LibraryBook(models.Model):
     publisher_id = fields.Many2one('res.partner', string='Publsiher')
     author_ids = fields.Many2many('res.partner', string='Authors')
     category_id = fields.Many2one('library.book.category')
+    age_days = fields.Float(
+        string='Days Since Release',
+        compute='_compute_age',
+        inverse='_inverse_age',
+        search='_search_age',
+    )
+
+
+    @api.depends('date_release')
+    def _compute_age(self):
+        today = fields.Date.today()
+        for book in self:
+            if book.date_release:
+                delta = today - book.date_release
+                book.age_days = delta.days
+            else:
+                book.age_days = 0
+
+    def _inverse_age(self):
+        today = fields.Date.today()
+        for book in self.filtered('date_release'):
+            d = today - timedelta(days=book.age_days)
+            book.date_release = d
+
+    def _search_age(self, operator, value):
+        today = fields.Date.today()
+        value_days = timedelta(days=value)
+        value_date = today - value_days
+        operator_map = {
+            '>': '<', '>=': '<=',
+            '<': '>', '<=': '>=',
+        }
+        new_op = operator_map.get(operator, operator)
+        return [('date_release', new_op, value_date)]
+
+
+
+    @api.constrains('date_release')
+    def _check_release_date(self):
+        for record in self:
+            if record.date_release and record.date_release > fields.Date.today():
+                raise models.ValidationError(
+                    'Release date must be in the past.'
+                )
 
 
 
