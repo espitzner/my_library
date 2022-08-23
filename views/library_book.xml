@@ -34,6 +34,7 @@
                     <group>
                         <field name="cost_price"/>
                         <field name="retail_price"/>
+                        <field name="ref_doc_id"/>
                     </group>
                     <group>
                         <field name="description"/>

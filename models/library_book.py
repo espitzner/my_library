@@ -42,7 +42,14 @@ class LibraryBook(models.Model):
         inverse='_inverse_age',
         search='_search_age',
     )
+    parent_id = fields.Many2one('res.partner', string='Publisher')
+    publisher_city = fields.Char('Publisher City', related='parent_id.city', readonly=True)
+    ref_doc_id = fields.Reference(selection='_referencable_models', string='Reference Document')
 
+    @api.model
+    def _referencable_models(self):
+        models = self.env['ir.model'].search([('field_id.name', '=', 'message_ids')])
+        return [(x.model, x.name) for x in models]
 
     @api.depends('date_release')
     def _compute_age(self):
