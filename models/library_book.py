@@ -2,10 +2,23 @@
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 from datetime import timedelta
+from odoo.exceptions import UserError
+from odoo.tools.translate import _
+
+
+class BaseArchive(models.AbstractModel):
+    _name = 'base.archive'
+
+    active = fields.Boolean(default=True)
+
+    def do_archive(self):
+        for record in self:
+            record.active = not record.active
 
 
 class LibraryBook(models.Model):
     _name = 'library.book'
+    _inherit = ['base.archive']
     _description = 'Library Book'
     _rec_name = 'short_name'
     _order = 'date_release desc, name'
@@ -22,8 +35,9 @@ class LibraryBook(models.Model):
     state = fields.Selection([
         ('draft', 'Not Available'),
         ('available', 'Available'),
+        ('borrowed', 'Borrowed'),
         ('lost', 'Lost')],
-        'State')
+        'State', default="draft")
     description = fields.Html('Description')
     cover = fields.Binary('Book Cover')
     out_of_print = fields.Boolean('Out of Print?')
@@ -45,6 +59,7 @@ class LibraryBook(models.Model):
     parent_id = fields.Many2one('res.partner', string='Publisher')
     publisher_city = fields.Char('Publisher City', related='parent_id.city', readonly=True)
     ref_doc_id = fields.Reference(selection='_referencable_models', string='Reference Document')
+
 
     @api.model
     def _referencable_models(self):
@@ -88,11 +103,86 @@ class LibraryBook(models.Model):
                     'Release date must be in the past.'
                 )
 
+    @api.model
+    def is_allowed_transition(self, old_state, new_state):
+        allowed=[
+            ('draft', 'available'),
+            ('available', 'borrowed'),
+            ('borrowed', 'available'),
+            ('available', 'lost'),
+            ('borrowed', 'lost'),
+            ('lost', 'available')]
+        return (old_state, new_state) in allowed
 
+    def change_state(self, new_state):
+        for book in self:
+            if book.is_allowed_transition(book.state, new_state):
+                book.state = new_state
+            else:
+                msg = _('Moving from %s to %s is not allowed') % (book.state, new_state)
+                raise UserError(msg)
 
+    def make_available(self):
+        self.change_state('available')
+
+    def make_borrowed(self):
+        self.change_state('borrowed')
+
+    def make_lost(self):
+        self.change_state('lost')
+
+    def get_all_library_members(self):
+        library_member_model = self.env['library.member']
+        all_members = library_member_model.search([])
+        print("ALL MEBMERS:", all_members)
+        return True
+
+    def create_categories(self):
+        categ1 = {
+            'name': 'Child category 1',
+            'description': 'Description for child 1'
+        }
+        categ2 = {
+            'name': 'Child category 2',
+            'description': 'Description for child 2'
+        }
+        parent_category_val = {
+            'name': 'Parent category',
+            'description': 'Description for parent category',
+            'child_ids': [
+                (0, 0, categ1),
+                (0, 0, categ2),
+            ]
+        }
+        recrod = self.env['library.book.category'].create(parent_category_val)
+        return True
+
+    def change_release_date(self):
+        self.ensure_one()
+        self.date_release = fields.Date.today()
+        
 
 class ResPartner(models.Model):
     _inherit = 'res.partner'
+    _order = 'name'
 
     published_book_ids = fields.One2many('library.book', 'publisher_id', string='Published Books')
     authored_book_ids = fields.Many2many('library.book', string='Authored Books')
+    count_books = fields.Integer( 'Number of Authored Books', compute='_compute_count_books')
+
+    @api.depends('authored_book_ids')
+    def _compute_count_books(self):
+        for r in self:
+            r.count_books = len(r.authored_books_ids)
+    
+
+class LibraryMember(models.Model):
+    _name = 'library.member'
+    _inherits = {'res.partner': 'partner+id'}
+    
+    partner_id = fields.Many2one('res.patner', ondelete='cascade')
+    date_start = fields.Date('Member Since')
+    date_end = fields.Date('Termination Date')
+    member_number = fields.Char()
+    date_of_birth = fields.Date('Date of birth')
+

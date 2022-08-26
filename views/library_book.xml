@@ -16,6 +16,15 @@
         <field name="model">library.book</field>
         <field name="arch" type="xml">
             <form>
+                <button name="make_available" string="Make Available" type="object"/>
+                <button name="make_borrowed" string="Make Borrowed" type="object"/>
+                <button name="make_lost" string="Make Lost" type="object"/>
+                <button name="get_all_library_members" string="Get Members" type="object"/>
+                <button name="create_categories" string="Create Categories" type="object"/>
+                <button name="change_release_date" string="Update Date" type="object"/>
+                <field name="state" widget="statusbar"/>
+
+
                 <group>
                     <group>
                         <field name="name"/>
